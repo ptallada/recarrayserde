@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package es.pic.astro.hadoop.recarray.serde;
+package es.pic.astro.hadoop.serde;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
