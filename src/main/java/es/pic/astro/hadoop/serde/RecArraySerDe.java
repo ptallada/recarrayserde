@@ -336,7 +336,23 @@ public class RecArraySerDe extends AbstractSerDe {
               }
               break;
             case CHAR:
+              if (data != null) {
+                // TODO: Get the length of the model row when HIVE-13064 is
+                // fixed to implement specific per-column lengths.
+                int len = STRING_FIELD_LENGTH;
+                String s = (((HiveCharObjectInspector) poi).getPrimitiveJavaObject(data)).getValue();
+                model[i] = new String[]{StringUtils.rightPad(s, len, '\0').substring(0, len)};
+              }
+              break;
             case VARCHAR:
+              if (data != null) {
+                // TODO: Get the length of the model row when HIVE-13064 is
+                // fixed to implement specific per-column lengths.
+                int len = STRING_FIELD_LENGTH;
+                String s = (((HiveVarcharObjectInspector) poi).getPrimitiveJavaObject(data)).getValue();
+                model[i] = new String[]{StringUtils.rightPad(s, len, '\0').substring(0, len)};
+              }
+              break;
             case STRING:
               if (data != null) {
                 // TODO: Get the length of the model row when HIVE-13064 is
@@ -348,13 +364,13 @@ public class RecArraySerDe extends AbstractSerDe {
               break;
             case DATE:
               if (data != null) {
-                Date d = ((DateObjectInspector) poi).getPrimitiveJavaObject(data);
+                Date d = new Date((((DateObjectInspector) poi).getPrimitiveJavaObject(data)).toEpochMilli());
                 model[i] = new String[]{df.format(d)};
               }
               break;
             case TIMESTAMP:
               if (data != null) {
-                Date d = new Date(((TimestampObjectInspector) poi).getPrimitiveJavaObject(data).getTime());
+                Date d = new Date((((TimestampObjectInspector) poi).getPrimitiveJavaObject(data)).toEpochMilli());
                 model[i] = new String[]{tf.format(d)};
               }
               break;
