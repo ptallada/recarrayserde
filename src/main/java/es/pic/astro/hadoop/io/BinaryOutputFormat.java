@@ -25,58 +25,33 @@ import java.util.Properties;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator.RecordWriter;
-import org.apache.hadoop.hive.ql.exec.Utilities;
-import org.apache.hadoop.hive.serde.serdeConstants;
+import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.io.BytesWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
 import org.apache.hadoop.io.WritableComparable;
+import org.apache.hadoop.mapred.FileOutputFormat;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.mapred.TextOutputFormat;
 import org.apache.hadoop.util.Progressable;
-import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 
-public class BinaryOutputFormat<K extends WritableComparable, V extends Writable>
-    extends TextOutputFormat<K, V> implements HiveOutputFormat<K, V> {
+public class BinaryOutputFormat<K extends WritableComparable, V extends Writable> extends FileOutputFormat<K, V>
+    implements HiveOutputFormat<K, V> {
 
-  /**
-   * create the final out file, and output row by row. After one row is
-   * appended, a configured row separator is appended
-   *
-   * @param jc
-   *          the job configuration file
-   * @param outPath
-   *          the final output file to be created
-   * @param valueClass
-   *          the value class used for create
-   * @param isCompressed
-   *          whether the content is compressed or not
-   * @param tableProperties
-   *          the tableProperties of this file's corresponding table
-   * @param progress
-   *          progress used for status report
-   * @return the RecordWriter
-   */
-  @Override
-  public RecordWriter getHiveRecordWriter(JobConf jc, Path outPath,
-      Class<? extends Writable> valueClass, boolean isCompressed,
-      Properties tableProperties, Progressable progress) throws IOException {
-    
-    FileSystem fs = outPath.getFileSystem(jc);
-    final OutputStream outStream = Utilities.createCompressedStream(jc,
-    fs.create(outPath, progress), isCompressed);
+  private static void writeBinary(OutputStream outStream, Writable value) throws IOException {
+    if (!(value instanceof BytesWritable)) {
+      throw new IOException("BinaryOutputFormat only supports BytesWritable values, got: "
+          + (value == null ? "null" : value.getClass().getName()));
+    }
+
+    BytesWritable bw = (BytesWritable) value;
+    outStream.write(bw.getBytes(), 0, bw.getLength());
+  }
+
+  private static RecordWriter createHiveWriter(final OutputStream outStream) {
     return new RecordWriter() {
       @Override
-      public void write(Writable r) throws IOException {
-        if (r instanceof Text) {
-          Text tr = (Text) r;
-          outStream.write(tr.getBytes(), 0, tr.getLength());
-        } else {
-          // DynamicSerDe always writes out BytesWritable
-          BytesWritable bw = (BytesWritable) r;
-          outStream.write(bw.get(), 0, bw.getSize());
-        }
+      public void write(Writable value) throws IOException {
+        writeBinary(outStream, value);
       }
 
       @Override
@@ -86,33 +61,55 @@ public class BinaryOutputFormat<K extends WritableComparable, V extends Writable
     };
   }
 
-  protected static class IgnoreKeyWriter<K extends WritableComparable, V extends Writable>
+  private static class BinaryRecordWriter<K extends WritableComparable, V extends Writable>
       implements org.apache.hadoop.mapred.RecordWriter<K, V> {
 
-    private final org.apache.hadoop.mapred.RecordWriter<K, V> mWriter;
+    private final OutputStream outStream;
 
-    public IgnoreKeyWriter(org.apache.hadoop.mapred.RecordWriter<K, V> writer) {
-      this.mWriter = writer;
+    BinaryRecordWriter(OutputStream outStream) {
+      this.outStream = outStream;
     }
 
     @Override
     public synchronized void write(K key, V value) throws IOException {
-      this.mWriter.write(null, value);
+      writeBinary(outStream, value);
     }
 
     @Override
     public void close(Reporter reporter) throws IOException {
-      this.mWriter.close(reporter);
+      outStream.close();
     }
   }
 
+  /**
+   * Creates the final output file and writes rows as raw binary records.
+   *
+   * Compression is explicitly not supported by this output format.
+   */
   @Override
-  public org.apache.hadoop.mapred.RecordWriter<K, V> getRecordWriter(
-      FileSystem ignored, JobConf job, String name, Progressable progress)
-      throws IOException {
+  public RecordWriter getHiveRecordWriter(JobConf jc, Path outPath, Class<? extends Writable> valueClass,
+      boolean isCompressed, Properties tableProperties, Progressable progress) throws IOException {
 
-    return new IgnoreKeyWriter<K, V>(super.getRecordWriter(ignored, job, name,
-        progress));
+    if (isCompressed) {
+      throw new IOException("BinaryOutputFormat does not support compressed output");
+    }
+
+    FileSystem fs = outPath.getFileSystem(jc);
+    OutputStream outStream = fs.create(outPath, progress);
+    return createHiveWriter(outStream);
   }
 
+  @Override
+  public org.apache.hadoop.mapred.RecordWriter<K, V> getRecordWriter(FileSystem ignored, JobConf job, String name,
+      Progressable progress) throws IOException {
+
+    if (getCompressOutput(job)) {
+      throw new IOException("BinaryOutputFormat does not support compressed output");
+    }
+
+    Path outputPath = FileOutputFormat.getTaskOutputPath(job, name);
+    FileSystem fs = outputPath.getFileSystem(job);
+    OutputStream outStream = fs.create(outputPath, progress);
+    return new BinaryRecordWriter<K, V>(outStream);
+  }
 }

@@ -20,232 +20,250 @@ package es.pic.astro.hadoop.serde;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
-import java.math.BigInteger;
-import java.nio.charset.Charset;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Properties;
-import java.util.TimeZone;
 
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.common.type.HiveDecimal;
-import org.apache.hadoop.hive.common.type.HiveIntervalDayTime;
-import org.apache.hadoop.hive.common.type.HiveIntervalYearMonth;
+import org.apache.hadoop.hive.common.type.HiveBaseChar;
 import org.apache.hadoop.hive.serde.serdeConstants;
 import org.apache.hadoop.hive.serde2.AbstractSerDe;
 import org.apache.hadoop.hive.serde2.ByteStream;
-import org.apache.hadoop.hive.serde2.ByteStream.Output;
-import org.apache.hadoop.hive.serde2.ByteStream.RandomAccessOutput;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeSpec;
 import org.apache.hadoop.hive.serde2.SerDeStats;
-import org.apache.hadoop.hive.serde2.io.ByteWritable;
-import org.apache.hadoop.hive.serde2.io.DateWritable;
-import org.apache.hadoop.hive.serde2.io.DoubleWritable;
-import org.apache.hadoop.hive.serde2.io.HiveCharWritable;
-import org.apache.hadoop.hive.serde2.io.HiveDecimalWritable;
-import org.apache.hadoop.hive.serde2.io.HiveIntervalDayTimeWritable;
-import org.apache.hadoop.hive.serde2.io.HiveIntervalYearMonthWritable;
-import org.apache.hadoop.hive.serde2.io.HiveVarcharWritable;
-import org.apache.hadoop.hive.serde2.io.ShortWritable;
-import org.apache.hadoop.hive.serde2.io.TimestampWritable;
-import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.StandardUnionObjectInspector.StandardUnion;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DateObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveCharObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveDecimalObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveIntervalDayTimeObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveIntervalYearMonthObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.HiveVarcharObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.LongObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.BaseCharTypeInfo;
-import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
-import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
-import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
-import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
-import org.apache.hadoop.io.BooleanWritable;
 import org.apache.hadoop.io.BytesWritable;
-import org.apache.hadoop.io.FloatWritable;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.LongWritable;
-import org.apache.hadoop.io.Text;
 import org.apache.hadoop.io.Writable;
+
 import nom.tam.fits.BinaryTableHDU;
 import nom.tam.fits.FitsException;
 import nom.tam.fits.FitsFactory;
-import nom.tam.util.ArrayFuncs;
 import nom.tam.util.BufferedDataOutputStream;
 
 /**
- * RecArraySerDe can be used to write data as a sequence of **NumPy** record arrays
- * which, in turn, are the foundation of the **FITS** format.
- * 
- * Using this SerDe and generating the FITS headers from the metadata, a valid
- * FITS file can be constructed by appending the serialized data to the
- * respective headers and padding the result to 2880-byte boundaries.
- * 
  * The following column types are supported: BOOLEAN, TINYINT, SMALLINT, INT,
- * BIGINT, FLOAT, DOUBLE, DATE, TIMESTAMP, CHAR, VARCHAR and STRING.
- * 
- * The rest of column types are not supported: DECIMAL, BINARY, ARRAY, MAP,
- * STRUCT and UNION. 
- * 
+ * BIGINT, FLOAT, DOUBLE, DECIMAL, DATE, TIMESTAMP, CHAR, VARCHAR and STRING.
+ *
+ * The rest of column types are not supported: BINARY, ARRAY, MAP, STRUCT and
+ * UNION.
+ *
  * The mapping between Hive and FITS types is as follows:
- *  - BOOLEAN:     `L`
- *  - TINYINT:     `B` (You need a TZERO card to properly store the values)
- *  - SMALLINT:    `I`
- *  - INT:         `J`
- *  - BIGINT:      `K`
- *  - CHAR,
- *    VARCHAR,
- *    STRING:   `255A` (Per-column values after HIVE-13064 fix)
- *  - DATE:      `10A` (ISO-8601: "yyyy-MM-dd")
- *  - TIMESTAMP: `23A` (ISO-8601: "yyyy-MM-dd'T'HH:mm:ss.SSS")
- * 
+ * - BOOLEAN: `L` serialized as `T`, `F` or space
+ * - TINYINT: `B` (You need a TZERO card to properly store the values)
+ * - SMALLINT: `I`
+ * - INT: `J`
+ * - BIGINT: `K`
+ * - FLOAT: `E`
+ * - DOUBLE, DECIMAL: `D`
+ * - CHAR, VARCHAR: `nA` (where n is the type length)
+ * - STRING: `255A`
+ * - DATE: `10A` (ISO-8601: "yyyy-MM-dd")
+ * - TIMESTAMP: `23A` (ISO-8601: "yyyy-MM-dd'T'HH:mm:ss.SSS")
+ *
+ * DECIMAL values are serialized as IEEE 754 double values, so precision/scale
+ * are not preserved exactly in all cases.
+ *
  * NULL values are serialized following FITS standard:
- *  - BOOLEAN: `\0`
- *  - TINYINT, SMALLINT, INT, BIGINT: `Type.MIN_VALUE`
- *  - FLOAT, DOUBLE: `NaN`
- *  - CHAR, VARCHAR, STRING: All bytes are `\0` (FITS only requires the first)
- *  - DATE, TIMESTAMP: All bytes are `\0`
+ * - BOOLEAN: ` `
+ * - TINYINT, SMALLINT, INT, BIGINT: `Type.MIN_VALUE`
+ * - FLOAT, DOUBLE, DECIMAL: `NaN`
+ * - CHAR, VARCHAR, STRING: All bytes are `\0`
+ * - DATE, TIMESTAMP: All bytes are `\0`
  */
-@SerDeSpec(
-  schemaProps = {
-    serdeConstants.LIST_COLUMNS, 
-    serdeConstants.LIST_COLUMN_TYPES
-  }
-)
-
+@SerDeSpec(schemaProps = { serdeConstants.LIST_COLUMNS, serdeConstants.LIST_COLUMN_TYPES })
 public class RecArraySerDe extends AbstractSerDe {
 
   public static final int STRING_FIELD_LENGTH = 255;
   public static final String DATE_FORMAT = "yyyy-MM-dd";
   public static final String TIMESTAMP_FORMAT = "yyyy-MM-dd'T'HH:mm:ss.SSS";
-  
-  List<String> columnNames;
-  List<TypeInfo> columnTypes;
 
-  TypeInfo rowTypeInfo;
-  StructObjectInspector rowObjectInspector;
+  private List<String> columnNames;
+  private List<TypeInfo> columnTypes;
 
-  Object[] row;
-  Object[] model;
+  private TypeInfo rowTypeInfo;
+  private StructObjectInspector rowObjectInspector;
 
-  BinaryTableHDU hdu;
-  
-  BytesWritable serializeBytesWritable = new BytesWritable();
-  ByteStream.Output output = new ByteStream.Output();
-  BufferedDataOutputStream buffer = new BufferedDataOutputStream(output);
-  
-  DateFormat df;
-  DateFormat tf;
-  
+  /**
+   * Mutable per-column buffers used as the serialization source for one row.
+   */
+  private Object[] row;
+
+  private final BytesWritable serializeBytesWritable = new BytesWritable();
+  private final ByteStream.Output output = new ByteStream.Output();
+  private final BufferedDataOutputStream buffer = new BufferedDataOutputStream(output);
+
+  private DateFormat df;
+  private DateFormat tf;
+
+  /**
+   * Per-column fixed lengths for string-backed FITS fields:
+   * BOOLEAN -> 1
+   * CHAR/VARCHAR -> declared length
+   * STRING -> STRING_FIELD_LENGTH
+   * DATE -> DATE_FORMAT.length()
+   * TIMESTAMP -> TIMESTAMP_FORMAT.length()
+   * Non-string-backed columns -> 0
+   */
+  private int[] columnStringLengths;
+
+  /**
+   * Cached null-filled strings per column for string-backed FITS fields.
+   */
+  private String[] nullStringValues;
+
+  /**
+   * Cached struct fields and per-column writers to avoid per-row type switching.
+   */
+  private StructField[] structFields;
+  private ColumnWriter[] writers;
+
+  private interface ColumnWriter {
+    void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) throws SerDeException;
+  }
+
   @Override
-  public void initialize(Configuration conf, Properties tbl)
-      throws SerDeException {
+  public void initialize(Configuration conf, Properties tbl) throws SerDeException {
 
     df = new SimpleDateFormat(DATE_FORMAT);
     tf = new SimpleDateFormat(TIMESTAMP_FORMAT);
-    
-    // Get column names and types
+
     String columnNameProperty = tbl.getProperty(serdeConstants.LIST_COLUMNS);
     String columnTypeProperty = tbl.getProperty(serdeConstants.LIST_COLUMN_TYPES);
-    if (columnNameProperty.length() == 0) {
+
+    if (columnNameProperty == null || columnNameProperty.length() == 0) {
       columnNames = new ArrayList<String>();
     } else {
       columnNames = Arrays.asList(columnNameProperty.split(","));
     }
-    if (columnTypeProperty.length() == 0) {
+
+    if (columnTypeProperty == null || columnTypeProperty.length() == 0) {
       columnTypes = new ArrayList<TypeInfo>();
     } else {
       columnTypes = TypeInfoUtils.getTypeInfosFromTypeString(columnTypeProperty);
     }
-    assert (columnNames.size() == columnTypes.size());
-    
-    // Create row related objects
+
+    if (columnNames.size() != columnTypes.size()) {
+      throw new SerDeException(
+          "Mismatched column counts: names=" + columnNames.size() + ", types=" + columnTypes.size());
+    }
+
     rowTypeInfo = TypeInfoFactory.getStructTypeInfo(columnNames, columnTypes);
     rowObjectInspector = (StructObjectInspector) TypeInfoUtils
         .getStandardWritableObjectInspectorFromTypeInfo(rowTypeInfo);
-    
-    // Create sample row
+
     row = new Object[columnNames.size()];
+    columnStringLengths = new int[columnNames.size()];
+    nullStringValues = new String[columnNames.size()];
+
     for (int i = 0; i < columnNames.size(); i++) {
       TypeInfo type = columnTypes.get(i);
+
       switch (type.getCategory()) {
-        case PRIMITIVE: {
-          PrimitiveTypeInfo ptype = (PrimitiveTypeInfo) type;
-          switch (ptype.getPrimitiveCategory()) {
-            case BOOLEAN:
-            case BYTE:
-            case SHORT:
-            case INT:
-            case LONG:
-            case FLOAT:
-            case DOUBLE:
-              row[i] = Array.newInstance(ptype.getPrimitiveTypeEntry().primitiveJavaType, 1);
-              break;
-            case CHAR:
-            case VARCHAR:
-            case STRING:
-              row[i] = new String[]{StringUtils.repeat(' ', STRING_FIELD_LENGTH)};
-              break;
-            case DATE:
-              row[i] = new String[]{df.format(new Date())};
-              break;
-            case TIMESTAMP:
-              row[i] = new String[]{tf.format(new Date())};
-              break;
-            case BINARY:
-            case DECIMAL:
-            case VOID:
-            default: {
-              throw new SerDeException("Non supported column primitive type category: " + ptype.getPrimitiveCategory());
-            }
-          }
+      case PRIMITIVE: {
+        PrimitiveTypeInfo ptype = (PrimitiveTypeInfo) type;
+
+        switch (ptype.getPrimitiveCategory()) {
+        case BOOLEAN:
+          columnStringLengths[i] = 1;
+          nullStringValues[i] = " ";
+          row[i] = new String[] { " " };
+          break;
+
+        case BYTE:
+        case SHORT:
+        case INT:
+        case LONG:
+        case FLOAT:
+        case DOUBLE:
+          row[i] = Array.newInstance(ptype.getPrimitiveTypeEntry().primitiveJavaType, 1);
+          break;
+
+        case DECIMAL:
+          row[i] = new double[1];
+          break;
+
+        case CHAR:
+        case VARCHAR: {
+          int len = ((BaseCharTypeInfo) type).getLength();
+          columnStringLengths[i] = len;
+          nullStringValues[i] = makeNullString(len);
+          row[i] = new String[] { StringUtils.repeat(' ', len) };
           break;
         }
-        default: {
-          throw new SerDeException("Non supported column type category: "+ type.getCategory());
+
+        case STRING:
+          columnStringLengths[i] = STRING_FIELD_LENGTH;
+          nullStringValues[i] = makeNullString(STRING_FIELD_LENGTH);
+          row[i] = new String[] { StringUtils.repeat(' ', STRING_FIELD_LENGTH) };
+          break;
+
+        case DATE:
+          columnStringLengths[i] = DATE_FORMAT.length();
+          nullStringValues[i] = makeNullString(columnStringLengths[i]);
+          row[i] = new String[] { df.format(new Date()) };
+          break;
+
+        case TIMESTAMP:
+          columnStringLengths[i] = TIMESTAMP_FORMAT.length();
+          nullStringValues[i] = makeNullString(columnStringLengths[i]);
+          row[i] = new String[] { tf.format(new Date()) };
+          break;
+
+        case BINARY:
+        case VOID:
+        default:
+          throw new SerDeException("Non supported column primitive type category: " + ptype.getPrimitiveCategory());
         }
+        break;
+      }
+
+      default:
+        throw new SerDeException("Non supported column type category: " + type.getCategory());
       }
     }
-    
-    // Build empty model row from sample
+
     FitsFactory.setUseAsciiTables(false);
     try {
-      hdu = (BinaryTableHDU) FitsFactory.HDUFactory(row);
+      BinaryTableHDU hdu = (BinaryTableHDU) FitsFactory.hduFactory(row);
+      Object[] model = hdu.getData().getModelRow();
+
+      if (model.length != row.length) {
+        throw new SerDeException("Unexpected FITS model length: " + model.length + " != " + row.length);
+      }
     } catch (FitsException e) {
       throw new SerDeException(e);
     }
-    model = hdu.getData().getModelRow();
+
+    structFields = rowObjectInspector.getAllStructFieldRefs().toArray(new StructField[0]);
+    writers = new ColumnWriter[columnNames.size()];
+    for (int i = 0; i < columnNames.size(); i++) {
+      writers[i] = buildWriter(i, structFields[i].getFieldObjectInspector());
+    }
   }
 
   @Override
@@ -263,147 +281,245 @@ public class RecArraySerDe extends AbstractSerDe {
     return row;
   }
 
-  @Override
-  public Writable serialize(Object obj, ObjectInspector objInspector) throws SerDeException {
-    
-    StructObjectInspector soi = (StructObjectInspector) objInspector;
-    List<? extends StructField> fields = soi.getAllStructFieldRefs();
-    
-    StructField field;
-    Object data;
-    ObjectInspector oi;
-    
-    output.reset();
-    
-    for (int i = 0; i < columnNames.size(); i++) {
-      field = fields.get(i);
-      data = soi.getStructFieldData(obj, field);
-      oi = field.getFieldObjectInspector();
-      
-      switch (oi.getCategory()) {
-        case PRIMITIVE: {
-          PrimitiveObjectInspector poi = (PrimitiveObjectInspector) oi;
-          switch (poi.getPrimitiveCategory()) {
-            case BOOLEAN:
-              if (data != null) {
-                if (((BooleanObjectInspector) poi).get(data)) {
-                  model[i] = new String[]{"T"};
-                } else {
-                  model[i] = new String[]{"F"};
-                }
-              }
-              break;
-            case BYTE:
-              if (data != null) {
-                model[i] = new byte[]{((ByteObjectInspector) poi).get(data)};
-              } else {
-                model[i] = new byte[]{Byte.MIN_VALUE};
-              }
-              break;
-            case SHORT:
-              if (data != null) {
-                model[i] = new short[]{((ShortObjectInspector) poi).get(data)};
-              } else {
-                model[i] = new short[]{Short.MIN_VALUE};
-              }
-              break;
-            case INT:
-              if (data != null) {
-                model[i] = new int[]{((IntObjectInspector) poi).get(data)};
-              } else {
-                model[i] = new int[]{Integer.MIN_VALUE};
-              }
-              break;
-            case LONG:
-              if (data != null) {
-                model[i] = new long[]{((LongObjectInspector) poi).get(data)};
-              } else {
-                model[i] = new long[]{Long.MIN_VALUE};
-              }
-              break;
-            case FLOAT:
-              if (data != null) {
-                model[i] = new float[]{((FloatObjectInspector) poi).get(data)};
-              } else {
-                model[i] = new float[]{Float.NaN};
-              }
-              break;
-            case DOUBLE:
-              if (data != null) {
-                model[i] = new double[]{((DoubleObjectInspector) poi).get(data)};
-              } else {
-                model[i] = new double[]{Double.NaN};
-              }
-              break;
-            case CHAR:
-              if (data != null) {
-                // TODO: Get the length of the model row when HIVE-13064 is
-                // fixed to implement specific per-column lengths.
-                int len = STRING_FIELD_LENGTH;
-                String s = (((HiveCharObjectInspector) poi).getPrimitiveJavaObject(data)).getValue();
-                model[i] = new String[]{StringUtils.rightPad(s, len, '\0').substring(0, len)};
-              }
-              break;
-            case VARCHAR:
-              if (data != null) {
-                // TODO: Get the length of the model row when HIVE-13064 is
-                // fixed to implement specific per-column lengths.
-                int len = STRING_FIELD_LENGTH;
-                String s = (((HiveVarcharObjectInspector) poi).getPrimitiveJavaObject(data)).getValue();
-                model[i] = new String[]{StringUtils.rightPad(s, len, '\0').substring(0, len)};
-              }
-              break;
-            case STRING:
-              if (data != null) {
-                // TODO: Get the length of the model row when HIVE-13064 is
-                // fixed to implement specific per-column lengths.
-                int len = STRING_FIELD_LENGTH;
-                String s = ((StringObjectInspector) poi).getPrimitiveJavaObject(data);
-                model[i] = new String[]{StringUtils.rightPad(s, len, '\0').substring(0, len)};
-              }
-              break;
-            case DATE:
-              if (data != null) {
-                Date d = new Date((((DateObjectInspector) poi).getPrimitiveJavaObject(data)).toEpochMilli());
-                model[i] = new String[]{df.format(d)};
-              }
-              break;
-            case TIMESTAMP:
-              if (data != null) {
-                Date d = new Date((((TimestampObjectInspector) poi).getPrimitiveJavaObject(data)).toEpochMilli());
-                model[i] = new String[]{tf.format(d)};
-              }
-              break;
-            case BINARY:
-            case DECIMAL:
-            case VOID:
-            default: {
-              throw new SerDeException("Non supported column primitive type category: " + poi.getPrimitiveCategory());
-            }
-          }
-          break;
-        }
-        default: {
-          throw new SerDeException("Non supported column type category: "+ oi.getCategory());
-        }
+  private static String makeNullString(int len) {
+    return StringUtils.repeat('\0', len);
+  }
+
+  private static String toFitsFixedString(String s, int len) {
+    char[] out = new char[len];
+    Arrays.fill(out, '\0');
+
+    if (s != null) {
+      int n = Math.min(s.length(), len);
+      s.getChars(0, n, out, 0);
+    }
+
+    return new String(out);
+  }
+
+  private ColumnWriter buildWriter(final int columnIndex, final ObjectInspector oi) throws SerDeException {
+    switch (oi.getCategory()) {
+    case PRIMITIVE: {
+      PrimitiveObjectInspector poi = (PrimitiveObjectInspector) oi;
+
+      switch (poi.getPrimitiveCategory()) {
+      case BOOLEAN:
+        return buildBooleanWriter((BooleanObjectInspector) poi);
+      case BYTE:
+        return buildByteWriter((ByteObjectInspector) poi);
+      case SHORT:
+        return buildShortWriter((ShortObjectInspector) poi);
+      case INT:
+        return buildIntWriter((IntObjectInspector) poi);
+      case LONG:
+        return buildLongWriter((LongObjectInspector) poi);
+      case FLOAT:
+        return buildFloatWriter((FloatObjectInspector) poi);
+      case DOUBLE:
+        return buildDoubleWriter((DoubleObjectInspector) poi);
+      case DECIMAL:
+        return buildDecimalWriter((HiveDecimalObjectInspector) poi);
+      case CHAR:
+      case VARCHAR:
+        return buildCharWriter(columnIndex, poi);
+      case STRING:
+        return buildStringWriter(columnIndex, (StringObjectInspector) poi);
+      case DATE:
+        return buildDateWriter(columnIndex, (DateObjectInspector) poi);
+      case TIMESTAMP:
+        return buildTimestampWriter(columnIndex, (TimestampObjectInspector) poi);
+      case BINARY:
+      case VOID:
+      default:
+        throw new SerDeException("Non supported column primitive type category: " + poi.getPrimitiveCategory());
       }
     }
-    
-    try{
-      buffer.writeArray(model);
+
+    default:
+      throw new SerDeException("Non supported column type category: " + oi.getCategory());
+    }
+  }
+
+  private ColumnWriter buildBooleanWriter(final BooleanObjectInspector poi) {
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        String[] out = (String[]) dest;
+        out[0] = (data == null) ? " " : (poi.get(data) ? "T" : "F");
+      }
+    };
+  }
+
+  private ColumnWriter buildByteWriter(final ByteObjectInspector poi) {
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        ((byte[]) dest)[0] = (data != null) ? poi.get(data) : Byte.MIN_VALUE;
+      }
+    };
+  }
+
+  private ColumnWriter buildShortWriter(final ShortObjectInspector poi) {
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        ((short[]) dest)[0] = (data != null) ? poi.get(data) : Short.MIN_VALUE;
+      }
+    };
+  }
+
+  private ColumnWriter buildIntWriter(final IntObjectInspector poi) {
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        ((int[]) dest)[0] = (data != null) ? poi.get(data) : Integer.MIN_VALUE;
+      }
+    };
+  }
+
+  private ColumnWriter buildLongWriter(final LongObjectInspector poi) {
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        ((long[]) dest)[0] = (data != null) ? poi.get(data) : Long.MIN_VALUE;
+      }
+    };
+  }
+
+  private ColumnWriter buildFloatWriter(final FloatObjectInspector poi) {
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        ((float[]) dest)[0] = (data != null) ? poi.get(data) : Float.NaN;
+      }
+    };
+  }
+
+  private ColumnWriter buildDoubleWriter(final DoubleObjectInspector poi) {
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        ((double[]) dest)[0] = (data != null) ? poi.get(data) : Double.NaN;
+      }
+    };
+  }
+
+  private ColumnWriter buildDecimalWriter(final HiveDecimalObjectInspector poi) {
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        ((double[]) dest)[0] = (data != null) ? poi.getPrimitiveJavaObject(data).doubleValue() : Double.NaN;
+      }
+    };
+  }
+
+  private ColumnWriter buildCharWriter(final int columnIndex, final PrimitiveObjectInspector poi) {
+    final int len = columnStringLengths[columnIndex];
+    final String nullValue = nullStringValues[columnIndex];
+
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        String[] out = (String[]) dest;
+
+        if (data != null) {
+          String s = ((HiveBaseChar) poi.getPrimitiveJavaObject(data)).getValue();
+          out[0] = toFitsFixedString(s, len);
+        } else {
+          out[0] = nullValue;
+        }
+      }
+    };
+  }
+
+  private ColumnWriter buildStringWriter(final int columnIndex, final StringObjectInspector poi) {
+    final int len = columnStringLengths[columnIndex];
+    final String nullValue = nullStringValues[columnIndex];
+
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        String[] out = (String[]) dest;
+        out[0] = (data != null) ? toFitsFixedString(poi.getPrimitiveJavaObject(data), len) : nullValue;
+      }
+    };
+  }
+
+  private ColumnWriter buildDateWriter(final int columnIndex, final DateObjectInspector poi) {
+    final String nullValue = nullStringValues[columnIndex];
+
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        String[] out = (String[]) dest;
+
+        if (data != null) {
+          Date d = new Date(poi.getPrimitiveJavaObject(data).toEpochMilli());
+          out[0] = df.format(d);
+        } else {
+          out[0] = nullValue;
+        }
+      }
+    };
+  }
+
+  private ColumnWriter buildTimestampWriter(final int columnIndex, final TimestampObjectInspector poi) {
+    final String nullValue = nullStringValues[columnIndex];
+
+    return new ColumnWriter() {
+      @Override
+      public void write(Object rowData, StructObjectInspector soi, StructField field, Object dest) {
+        Object data = soi.getStructFieldData(rowData, field);
+        String[] out = (String[]) dest;
+
+        if (data != null) {
+          Date d = new Date(poi.getPrimitiveJavaObject(data).toEpochMilli());
+          out[0] = tf.format(d);
+        } else {
+          out[0] = nullValue;
+        }
+      }
+    };
+  }
+
+  @Override
+  public Writable serialize(Object obj, ObjectInspector objInspector) throws SerDeException {
+    StructObjectInspector soi = (StructObjectInspector) objInspector;
+
+    if (structFields.length != writers.length || writers.length != row.length) {
+      throw new SerDeException("Internal serializer state is inconsistent");
+    }
+
+    output.reset();
+
+    for (int i = 0; i < writers.length; i++) {
+      writers[i].write(obj, soi, structFields[i], row[i]);
+    }
+
+    try {
+      buffer.writeArray(row);
       buffer.flush();
     } catch (IOException e) {
       throw new SerDeException(e);
     }
-    
+
     serializeBytesWritable.set(output.getData(), 0, output.getLength());
-    
     return serializeBytesWritable;
   }
 
   @Override
   public SerDeStats getSerDeStats() {
-    // no support for statistics
     return null;
   }
 }
